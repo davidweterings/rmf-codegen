@@ -37,7 +37,7 @@ public class GroovyBuilderDslCodeGenerator extends CodeGenerator {
 
     @Override
     public Single<GenerationResult> generateStub() {
-        final Single<GenerationResult> generationResult = getRamlObjects()
+        final Single<GenerationResult> generationResult = getTypes()
                 .filter(ObjectType.class::isInstance)
                 .cast(ObjectType.class)
                 .flatMapMaybe(this::transformToJavaFile)
