@@ -4,6 +4,7 @@ import com.neovisionaries.i18n.CountryCode;
 import com.neovisionaries.i18n.CurrencyCode;
 import io.reactivex.observers.TestObserver;
 import io.vrap.rmf.codegen.common.generator.MasterCodeGenerator;
+import io.vrap.rmf.codegen.common.generator.builder.GroovyBuilderDslCodeGenerator;
 import io.vrap.rmf.codegen.common.generator.client.spring.SpringClientCodeGenerator;
 import io.vrap.rmf.codegen.common.generator.core.CodeGenerator;
 import io.vrap.rmf.codegen.common.generator.core.GenerationResult;
@@ -43,8 +44,7 @@ public class CodeGeneratorTest {
             customTypeMapping.put("CurrencyCode", CurrencyCode.class.getCanonicalName());
         }
 
-        final URL url = CodeGenerator.class.getResource("/api-spec/api.raml");
-        final URI ramlFileLocation = URI.createURI(url.toString());
+        final URI ramlFileLocation = URI.createFileURI("/Users/mkoester/Development/commercetools-importer/api-spec/api.raml");
         final String gensrc = System.getProperty("GENSRC");
         final String current = System.getProperty("user.dir");
         final Path outputPath = gensrc == null ?
@@ -66,7 +66,7 @@ public class CodeGeneratorTest {
 
         final GeneratorComponent generatorComponent = DaggerGeneratorComponent
                 .builder()
-                .generatorModule(GeneratorModule.of(generatorConfig, BeanGenerator::new, SpringClientCodeGenerator::new))
+                .generatorModule(GeneratorModule.of(generatorConfig, BeanGenerator::new, GroovyBuilderDslCodeGenerator::new))
                 .build();
 
         MasterCodeGenerator masterCodeGenerator = generatorComponent.getMasterCodeGenerator();

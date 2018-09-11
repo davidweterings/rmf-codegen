@@ -2,6 +2,7 @@ package io.vrap.rmf.codegen.common.generator.client.spring;
 
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Converter;
+import com.google.common.base.Predicate;
 import com.google.common.collect.LinkedListMultimap;
 import com.squareup.javapoet.*;
 import io.reactivex.Maybe;
@@ -13,6 +14,7 @@ import io.vrap.rmf.raml.model.modules.Api;
 import io.vrap.rmf.raml.model.resources.HttpMethod;
 import io.vrap.rmf.raml.model.resources.Method;
 import io.vrap.rmf.raml.model.resources.Resource;
+import io.vrap.rmf.raml.model.responses.Response;
 import io.vrap.rmf.raml.model.types.AnyType;
 import io.vrap.rmf.raml.model.types.ArrayType;
 
@@ -65,7 +67,11 @@ public class SpringClientCodeGenerator extends CodeGenerator {
         for (final Resource resource : resources.getValue()) {
             for (final Method method : resource.getMethods()) {
                 final String methodName = method.getMethodName();
-                final AnyType returnType = method.getResponses().stream().filter(r -> r.getStatusCode().equals("200")).findFirst().orElse(null).getBodies().get(0).getType();
+                final Predicate<Response> p = r -> {
+                    int status = Integer.parseInt(r.getStatusCode());
+                    return status >= 200 && status < 300;
+                };
+                final AnyType returnType = method.getResponses().stream().filter(p).findFirst().orElse(null).getBodies().get(0).getType();
                 final TypeName resourceTypeName = getTypeNameSwitch().doSwitch(returnType);
                 final String javaDoc = getJavaDocProcessor().markDownToJavaDoc(method);
                 final MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName).addModifiers(Modifier.PUBLIC)
