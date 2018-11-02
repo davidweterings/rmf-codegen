@@ -6,6 +6,7 @@ import io.vrap.codegen.kt.languages.java.groovy.dsl.GroovyDslModule
 import io.vrap.codegen.kt.languages.java.model.JavaModelModule
 import io.vrap.codegen.kt.languages.java.plantuml.PlantUmlModule
 import io.vrap.codegen.kt.languages.java.spring.resttemplate.SpringWebClientModule
+import io.vrap.codegen.kt.languages.java.spring.resttemplate.SpringWebfluxApiModule
 import io.vrap.rmf.codegen.kt.CodeGeneratorConfig
 import io.vrap.rmf.codegen.kt.di.GeneratorComponent
 import io.vrap.rmf.codegen.kt.di.GeneratorModule
@@ -46,6 +47,13 @@ class TestCodeGenerator {
     fun generateSpringWebClient(){
         val generatorModule = GeneratorModule(generatorConfig, JavaBaseTypes)
         val generatorComponent = GeneratorComponent(generatorModule, SpringWebClientModule())
+        generatorComponent.generateFiles()
+    }
+
+    @Test
+    fun generateSpringWebfluxApi(){
+        val generatorModule = GeneratorModule(generatorConfig, JavaBaseTypes)
+        val generatorComponent = GeneratorComponent(generatorModule, SpringWebfluxApiModule())
         generatorComponent.generateFiles()
     }
 
