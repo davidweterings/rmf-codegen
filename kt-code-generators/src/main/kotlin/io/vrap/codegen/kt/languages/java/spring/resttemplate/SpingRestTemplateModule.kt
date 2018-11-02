@@ -1,12 +1,12 @@
-package io.vrap.codegen.kt.languages.java.client
+package io.vrap.codegen.kt.languages.java.spring.resttemplate
 
 import com.google.inject.AbstractModule
 import com.google.inject.multibindings.Multibinder
 import io.vrap.rmf.codegen.kt.rendring.ResourceCollectionRenderer
 
-class SpringClientModule : AbstractModule() {
+class SpingRestTemplateModule : AbstractModule() {
     override fun configure() {
         val resourceCollectionBinder = Multibinder.newSetBinder(binder(), ResourceCollectionRenderer::class.java)
-        resourceCollectionBinder.addBinding().to(SpringClientRenderer::class.java)
+        resourceCollectionBinder.addBinding().to(SpringRestTemplateRenderer::class.java)
     }
 }

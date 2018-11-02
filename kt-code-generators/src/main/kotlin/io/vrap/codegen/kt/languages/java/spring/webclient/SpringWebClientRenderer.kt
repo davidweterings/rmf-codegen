@@ -1,4 +1,4 @@
-package io.vrap.codegen.kt.languages.java.client
+package io.vrap.codegen.kt.languages.java.spring.resttemplate
 
 import com.google.inject.Inject
 import io.vrap.codegen.kt.languages.java.JavaSubTemplates
@@ -20,7 +20,7 @@ import io.vrap.rmf.raml.model.responses.Response
 import io.vrap.rmf.raml.model.types.AnyType
 import io.vrap.rmf.raml.model.types.impl.TypesFactoryImpl
 
-class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvider, override val vrapTypeProvider: VrapTypeProvider) : ResourceCollectionRenderer, EObjectTypeExtensions {
+class SpringWebClientRenderer @Inject constructor(val packageProvider: PackageProvider, override val vrapTypeProvider: VrapTypeProvider) : ResourceCollectionRenderer, EObjectTypeExtensions {
 
 
     override fun render(type: ResourceCollection): TemplateFile {
@@ -33,19 +33,14 @@ class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvi
             |import java.util.HashMap;
             |import java.util.List;
             |import java.util.Map;
-            |import java.net.ConnectException;
             |import javax.annotation.Generated;
             |
             |import org.springframework.beans.factory.annotation.Value;
             |import org.springframework.core.ParameterizedTypeReference;
-            |import org.springframework.http.HttpEntity;
-            |import org.springframework.http.HttpHeaders;
-            |import org.springframework.http.HttpMethod;
             |import org.springframework.http.MediaType;
-            |import org.springframework.retry.annotation.Backoff;
-            |import org.springframework.retry.annotation.Retryable;
             |import org.springframework.stereotype.Component;
-            |import org.springframework.web.client.RestTemplate;
+            |import org.springframework.web.reactive.function.client.WebClient;
+            |import reactor.core.publisher.Mono;
             |
             |${type.sample.toJavaComment().escapeAll()}
             |${JavaSubTemplates.generatedAnnotation.escapeAll()}
@@ -53,12 +48,11 @@ class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvi
             |public class ${vrapType.simpleClassName} {
             |
             |    private final String baseUri;
+            |    private final WebClient webClient;
             |
-            |    private final RestTemplate restTemplate;
-            |
-            |    public ${vrapType.simpleClassName}(@Value("${'$'}{sdk.baseUri}") final String baseUri, final RestTemplate restTemplate) {
+            |    public ${vrapType.simpleClassName}(@Value("${'$'}{sdk.baseUri}") final String baseUri) {
             |        this.baseUri = baseUri;
-            |        this.restTemplate = restTemplate;
+            |        this.webClient = WebClient.create(baseUri);
             |    }
             |
             |    <${type.methods()}>
@@ -83,23 +77,17 @@ class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvi
         val methodReturnType = vrapTypeProvider.doSwitch(method.retyurnType())
         val body = """
             |${method.toJavaComment().escapeAll()}
-            |@Retryable(
-            |          value = { ConnectException.class },
-            |          maxAttemptsExpression = "#{${'$'}{retry.${method.method.name}.maxAttempts}}",
-            |          backoff = @Backoff(delayExpression = "#{1}", maxDelayExpression = "#{5}", multiplierExpression = "#{2}"))
-            |public ${methodReturnType.fullClassName().escapeAll()} ${method.method.name.toLowerCase()}(${methodParameters(resource, method)}) {
+            |public Mono\<${methodReturnType.fullClassName().escapeAll()}\> ${method.method.name.toLowerCase()}(${methodParameters(resource, method)}) {
             |
             |    final Map\<String, Object\> parameters = new HashMap\<\>();
             |
             |    <${resource.allUriParameters.map { "parameters.put(\"${it.name}\",${it.name});" }.joinToString(separator = "\n")}>
             |
-            |    <${method.mediaType().escapeAll()}>
-            |
             |    final ParameterizedTypeReference\<${method.retyurnType().toVrapType().fullClassName().escapeAll()}\> type = new ParameterizedTypeReference\<${method.retyurnType().toVrapType().fullClassName().escapeAll()}\>() {};
-            |    final String fullUri = baseUri + "${resource.fullUri.template}";
             |
-            |    return restTemplate.exchange(fullUri, HttpMethod.${method.method.name.toUpperCase()}, entity, type, parameters).getBody();
-            |
+            |    return webClient.${method.method.name.toLowerCase()}()${contentType(method)}
+            |         .retrieve()
+            |         .bodyToMono(type);
             |}
                 """.trimMargin()
         return body
@@ -112,9 +100,18 @@ class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvi
                 .toMutableList()
 
         if (method.bodies?.isNotEmpty() ?: false) {
-            paramList.add(method.bodies[0].type.toVrapType().fullClassName())
+            paramList.add("final ${method.bodies[0].type.toVrapType().fullClassName().escapeAll()} body")
         }
         return paramList.joinToString(separator = ", ")
+    }
+
+    fun contentType(method: Method): String {
+        return if (method.bodies?.isNotEmpty() ?: false) {
+            """|.contentType(MediaType.parseMediaType(("${method.bodies[0].contentType}"))).syncBody(body)
+            """.trimMargin()
+        } else {
+            """"""
+        }
     }
 
     fun Method.mediaType(): String {
@@ -135,8 +132,8 @@ class SpringClientRenderer @Inject constructor(val packageProvider: PackageProvi
         return this.responses
                 .filter { it.isSuccessfull() }
                 .filter { it.bodies?.isNotEmpty() ?: false }
-                .first()
-                .let { it.bodies[0].type }
+                .map { it.bodies[0].type }
+                .firstOrNull()
                 ?: TypesFactoryImpl.eINSTANCE.createNilType()
     }
 

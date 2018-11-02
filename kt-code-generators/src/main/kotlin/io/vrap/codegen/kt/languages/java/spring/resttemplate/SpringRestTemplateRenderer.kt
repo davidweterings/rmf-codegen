@@ -1,8 +1,7 @@
-package io.vrap.codegen.kt.languages.java
+package io.vrap.codegen.kt.languages.java.spring.resttemplate
 
-import com.google.inject.AbstractModule
 import com.google.inject.Inject
-import com.google.inject.multibindings.Multibinder
+import io.vrap.codegen.kt.languages.java.JavaSubTemplates
 import io.vrap.codegen.kt.languages.java.extensions.EObjectTypeExtensions
 import io.vrap.codegen.kt.languages.java.extensions.fullClassName
 import io.vrap.codegen.kt.languages.java.extensions.simpleName
@@ -12,7 +11,6 @@ import io.vrap.rmf.codegen.kt.io.TemplateFile
 import io.vrap.rmf.codegen.kt.rendring.ResourceCollectionRenderer
 import io.vrap.rmf.codegen.kt.rendring.utils.escapeAll
 import io.vrap.rmf.codegen.kt.rendring.utils.keepIndentation
-import io.vrap.rmf.codegen.kt.types.LanguageBaseTypes
 import io.vrap.rmf.codegen.kt.types.PackageProvider
 import io.vrap.rmf.codegen.kt.types.VrapObjectType
 import io.vrap.rmf.codegen.kt.types.VrapTypeProvider
@@ -21,36 +19,6 @@ import io.vrap.rmf.raml.model.resources.Resource
 import io.vrap.rmf.raml.model.responses.Response
 import io.vrap.rmf.raml.model.types.AnyType
 import io.vrap.rmf.raml.model.types.impl.TypesFactoryImpl
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZonedDateTime
-import kotlin.reflect.KClass
-
-object JavaBaseTypes : LanguageBaseTypes(
-
-        objectType = fromDefaultJavaType(java.lang.Object::class),
-        integerType = fromDefaultJavaType(java.lang.Integer::class),
-        longType = fromDefaultJavaType(java.lang.Long::class),
-        doubleType = fromDefaultJavaType(java.lang.Double::class),
-        stringType = fromDefaultJavaType(java.lang.String::class),
-        booleanType = fromDefaultJavaType(java.lang.Boolean::class),
-        dateTimeType = fromJavaType(ZonedDateTime::class),
-        dateOnlyType = fromJavaType(LocalDate::class),
-        timeOnlyType = fromJavaType(LocalTime::class)
-
-
-)
-
-fun  fromJavaType(kClass: KClass<out Any>):VrapObjectType{
-   return VrapObjectType(kClass.java.`package`.name,kClass.java.simpleName)
-}
-fun  fromDefaultJavaType(kClass: KClass<out Any>):VrapObjectType = fromJavaType(kClass).let { VrapObjectType(it.`package`,it.simpleClassName) }
-class SpringRestTemplateModule : AbstractModule() {
-    override fun configure() {
-        val resourceCollectionBinder = Multibinder.newSetBinder(binder(), ResourceCollectionRenderer::class.java)
-        resourceCollectionBinder.addBinding().to(SpringRestTemplateRenderer::class.java)
-    }
-}
 
 class SpringRestTemplateRenderer @Inject constructor(val packageProvider: PackageProvider, override val vrapTypeProvider: VrapTypeProvider) : ResourceCollectionRenderer, EObjectTypeExtensions {
 
