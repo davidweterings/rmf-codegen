@@ -39,5 +39,6 @@ enum class TargetType {
     GROOVY_DSL,
     JAVA_SPRING_CLIENT,
     TYPESCRIPT_MODEL,
-    JOI_VALIDATOR
+    JOI_VALIDATOR,
+    RUST_MODEL
 }

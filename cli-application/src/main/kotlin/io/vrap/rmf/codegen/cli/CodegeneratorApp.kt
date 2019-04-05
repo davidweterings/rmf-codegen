@@ -10,6 +10,8 @@ import io.vrap.codegen.languages.php.PhpBaseTypes
 import io.vrap.codegen.languages.php.model.PhpModelModule
 import io.vrap.codegen.languages.typescript.model.TypeScriptBaseTypes
 import io.vrap.codegen.languages.typescript.model.TypeScriptModelModule
+import io.vrap.codegen.languages.rust.model.RustBaseTypes
+import io.vrap.codegen.languages.rust.model.RustModelModule
 import io.vrap.rmf.codegen.CodeGeneratorConfig
 import io.vrap.rmf.codegen.di.ApiProvider
 import io.vrap.rmf.codegen.di.GeneratorComponent
@@ -36,6 +38,7 @@ const val javaModel = "java-model"
 const val springClient = "spring-client"
 const val typescriptModel = "typescript-model"
 const val php = "php"
+const val rustModel = "rust-model"
 
 
 @Command(name = "generate", description = "Generate source code from a RAML specification.")
@@ -97,6 +100,10 @@ class GeneratorTask : Runnable {
             php -> {
                 val generatorModule = GeneratorModule(apiProvider, generatorConfig, PhpBaseTypes)
                 GeneratorComponent(generatorModule, PhpModelModule())
+            }
+            rustModel -> {
+                val generatorModule = GeneratorModule(apiProvider, generatorConfig, RustBaseTypes)
+                GeneratorComponent(generatorModule, RustModelModule())
             }
             else -> throw IllegalArgumentException("unsupported target '$target', allowed values are $javaModel, $springClient, $typescriptModel and $php")
         }

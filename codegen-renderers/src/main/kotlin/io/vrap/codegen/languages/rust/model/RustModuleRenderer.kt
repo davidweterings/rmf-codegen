@@ -1,9 +1,9 @@
-package io.vrap.codegen.languages.typescript.model
+package io.vrap.codegen.languages.rust.model
 
 import com.google.inject.Inject
-import io.vrap.codegen.languages.java.extensions.EObjectTypeExtensions
 import io.vrap.codegen.languages.java.extensions.simpleName
 import io.vrap.codegen.languages.java.extensions.toComment
+import io.vrap.codegen.languages.php.extensions.forcedLiteralEscape
 import io.vrap.rmf.codegen.io.TemplateFile
 import io.vrap.rmf.codegen.rendring.FileProducer
 import io.vrap.rmf.codegen.rendring.utils.escapeAll
@@ -14,7 +14,7 @@ import io.vrap.rmf.codegen.types.VrapTypeProvider
 import io.vrap.rmf.raml.model.types.*
 import io.vrap.rmf.raml.model.util.StringCaseFormat
 
-class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider: VrapTypeProvider) : TsObjectTypeExtensions, EObjectTypeExtensions, FileProducer {
+class RustModuleRenderer @Inject constructor(override val vrapTypeProvider: VrapTypeProvider) : RustObjectTypeExtensions, RustEObjectTypeExtensions, FileProducer {
 
     @Inject
     lateinit var allAnyTypes: MutableList<AnyType>
@@ -36,18 +36,25 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
     }
 
 
-    fun buildModule(moduleName: String, types: List<AnyType>): TemplateFile {
+    fun buildModule(modName: String, types: List<AnyType>): TemplateFile {
+        var moduleName = modName
+        if (moduleName.endsWith("Type") && !moduleName.endsWith(("ProductType"))) {
+            moduleName = moduleName.replace("Type", "cttype")
+        }
 
         val content = """
-           |/* tslint:disable */
            |//Generated file, please do not change
            |
            |${getImportsForModule(moduleName, types)}
+           |use chrono::{DateTime, NaiveDate, Utc};
+           |use serde_json;
+           |use serde::{Deserialize, Serialize};
+           |use std::collections::HashMap;
            |
            |${types.map { it.renderAnyType() }.joinToString(separator = "\n")}
        """.trimMargin().keepIndentation()
 
-        return TemplateFile(content, moduleName.replace(".", "/") + ".ts")
+        return TemplateFile(content, moduleName.toLowerCase().replace(".", "/") + ".rs")
 
     }
 
@@ -64,24 +71,28 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
     fun ObjectType.renderObjectType(): String {
         val vrapType = this.toVrapType() as VrapObjectType
 
-        return """
-        |${this.toComment().escapeAll()}
-        |export class ${vrapType.simpleClassName} ${this.type?.toVrapType()?.simpleName()?.let { "extends $it " }
-                ?: ""}{
-        |
-        |   <${this.patternSpec()}>
-        |   <${this.constructorBlock()}>
-        |}
-        """.trimMargin()
+        if (this.patternSpec() != "") {
+            return """
+            |${this.toComment().escapeAll()}
+            |pub type ${vrapType.simpleClassName} = ${this.patternSpec()};
+            """.trimMargin()
+        } else {
+            return """
+            |${this.toComment().escapeAll()}
+            |#[derive(Serialize, Deserialize, Debug)]
+            |#[serde(rename_all = "camelCase")]
+            |pub struct ${vrapType.simpleClassName} {
+            |   <${this.constructorBlock()}>
+            |}
+            """.trimMargin()
+        }
     }
 
     fun ObjectType.constructorBlock():String{
         return if(this.allProperties.filter { !it.isPatternProperty() }.isNotEmpty())
             """
-            |constructor(
-            |       <${this.objectFields().escapeAll()}>
-            |){<${this.superConstructor()}>}
-            |""".trimMargin()
+            |${this.objectFields().escapeAll()}
+            """.trimMargin()
         else ""
     }
 
@@ -96,7 +107,7 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
                         if (it.name != this.discriminator())
                             it.name
                         else if ((it.type as StringType).enum.isNotEmpty())
-                            "${it.type.toVrapType().simpleTSName()}.${this.discriminatorValueOrDefault().enumValueName()}"
+                            "${it.type.toVrapType().simpleRustName()}.${this.discriminatorValueOrDefault().enumValueName()}"
                         else
                             "'${this.discriminatorValueOrDefault()}'"
                     }
@@ -116,12 +127,17 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
                 .map {
                     val comment: String = it.type.toComment()
                     val commentNotEmpty: Boolean = comment.isNotBlank()
+                    var fieldName: String = StringCaseFormat.LOWER_UNDERSCORE_CASE.apply(it.name)
+                    if (fieldName == "type") {
+                        fieldName = "r#type"
+                    }
                     """
                     |${if (commentNotEmpty) {
                         comment + "\n"
-                    } else ""}readonly ${it.name}${if (!it.required) "?" else ""} : ${it.type.toVrapType().simpleTSName()}""".trimMargin()
+                    } else ""}pub $fieldName: ${if (!it.required) "Option<" else ""}${it.type.toVrapType().simpleRustName()}${if (!it.required) ">" else ""},""".trimMargin()
+
                 }
-                .joinToString(separator = ", \n")
+                .joinToString(separator = "\n")
     }
 
     fun StringType.renderStringType(): String {
@@ -129,17 +145,47 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
 
         return """
         |${this.toComment().escapeAll()}
-        |export enum ${vrapType.simpleClassName} {
-        |
+        |#[derive(Serialize, Deserialize, Debug)]
+        |pub enum ${vrapType.simpleClassName} {
         |   <${this.enumFields()}>
-        |
         |}
+        |
+        |${this.enumImpl(vrapType.simpleClassName)}
         """.trimMargin()
     }
 
     fun StringType.enumFields(): String = this.enumJsonNames()
-            .map { "${it.enumValueName()} = '$it'" }
+            .map { StringCaseFormat.UPPER_CAMEL_CASE.apply(it.enumValueName()) }
             .joinToString(separator = ",\n")
+
+    fun StringType.enumImpl(enumName: String): String {
+
+        val fromStringEnums = this.enumJsonNames()
+            .map { "\"$it\" =\\> Some($enumName::${StringCaseFormat.UPPER_CAMEL_CASE.apply(it.enumValueName())})," }
+            .joinToString(separator = "\n")
+
+        val toStringEnums = this.enumJsonNames()
+            .map { "$enumName::${StringCaseFormat.UPPER_CAMEL_CASE.apply(it.enumValueName())} =\\> \"$it\"," }
+            .joinToString(separator = "\n")
+
+        return """
+        |impl $enumName {
+        |    pub fn from_str(s: &str) -\> Option\<$enumName\> {
+        |        match s {
+        |            <$fromStringEnums>
+        |            _ =\> None,
+        |        }
+        |    }
+
+        |    pub fn as_str(&self) -\> &'static str {
+        |        match *self {
+        |           <$toStringEnums>
+        |        }
+        |    }
+        |}
+        """.trimIndent()
+
+    }
 
 
     fun StringType.enumJsonNames() = this.enum?.filter { it is StringInstance }
@@ -161,7 +207,7 @@ class TypeScriptModuleRenderer @Inject constructor(override val vrapTypeProvider
                 .filter { it.isPatternProperty() }
                 .firstOrNull()
                 .let {
-                    if (it != null) "[key:string]: ${it.type.toVrapType().simpleTSName()}" else ""
+                    if (it != null) "HashMap\\<String, ${it.type.toVrapType().simpleRustName().escapeAll()}\\>" else ""
                 }
     }
 
